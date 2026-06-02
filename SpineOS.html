@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SpineOS — Phase 1 Prototype</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Mulish:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
+<style>
+/* ─────────────────────────────────────────────────────────────
+   SpineOS — Design Tokens
+   "Clinical dashboard meets wellness app"
+   Type: Hanken Grotesk (display) + Mulish (body) — humanist & warm
+   ───────────────────────────────────────────────────────────── */
+:root{
+  /* brand / semantic color */
+  --blue:#0A5C8E;          /* primary medical blue */
+  --blue-press:#084c76;
+  --green:#2E7D32;         /* success / low risk */
+  --amber:#E08A00;         /* warning / moderate (brief #F4A100, nudged for AA on white) */
+  --amber-bright:#F4A100;
+  --red:#C62828;           /* high risk */
+
+  /* neutrals — faintly cool, clinical but soft */
+  --bg:#F4F7FB;
+  --surface:#FFFFFF;
+  --surface-2:#FBFCFE;
+  --ink:#11212E;           /* primary text — deep slate, not pure black */
+  --ink-2:#496073;         /* secondary text */
+  --ink-3:#8095A4;         /* tertiary / hints */
+  --line:#E3EBF2;          /* hairlines / borders */
+  --line-2:#EEF3F8;
+
+  /* tints (color-mix keeps them locked to the brand hues) */
+  --blue-soft:color-mix(in srgb, var(--blue) 8%, white);
+  --blue-soft-2:color-mix(in srgb, var(--blue) 14%, white);
+  --green-soft:color-mix(in srgb, var(--green) 11%, white);
+  --amber-soft:color-mix(in srgb, var(--amber-bright) 15%, white);
+  --red-soft:color-mix(in srgb, var(--red) 9%, white);
+
+  /* type */
+  --font-display:'Hanken Grotesk', system-ui, sans-serif;
+  --font-body:'Mulish', system-ui, sans-serif;
+
+  /* spacing scale */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s7:32px; --s8:40px;
+
+  /* radius */
+  --r-sm:10px; --r-md:14px; --r-lg:20px; --r-xl:26px; --r-full:999px;
+
+  /* elevation — soft, low-contrast clinical shadows */
+  --sh-1:0 1px 2px rgba(17,33,46,.04), 0 1px 3px rgba(17,33,46,.06);
+  --sh-2:0 2px 6px rgba(17,33,46,.05), 0 8px 24px rgba(17,33,46,.06);
+  --sh-3:0 12px 40px rgba(17,33,46,.12);
+}
+
+*{ box-sizing:border-box; }
+html,body{ margin:0; padding:0; }
+body{
+  background:
+    radial-gradient(1200px 700px at 50% -10%, #eaf1f9 0%, transparent 60%),
+    #e7eef6;
+  font-family:var(--font-body);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  min-height:100vh;
+}
+
+/* stage that holds the centered, scaled phone */
+#stage{
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+  overflow:auto;
+}
+#stage::-webkit-scrollbar{ width:0; height:0; }
+
+/* reset button defaults globally inside app */
+button{ font-family:inherit; cursor:pointer; }
+
+/* hide native scrollbars inside the device for a cleaner app look */
+.app-scroll{ scrollbar-width:none; -ms-overflow-style:none; }
+.app-scroll::-webkit-scrollbar{ width:0; height:0; display:none; }
+
+/* keyframes */
+@keyframes spo-fade-up{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;} }
+@keyframes spo-fade{ from{opacity:0;} to{opacity:1;} }
+@keyframes spo-pop{ 0%{transform:scale(.96); opacity:0;} 100%{transform:scale(1); opacity:1;} }
+@keyframes spo-sweep{ to{ stroke-dashoffset:var(--dash-to); } }
+@keyframes spo-pulse{ 0%,100%{opacity:.55;} 50%{opacity:1;} }
+@keyframes spo-spin{ to{ transform:rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; }
+}
+</style>
+</head>
+<body>
+<div id="stage"><div id="root"></div></div>
+
+<!-- React + Babel (pinned) -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- starters -->
+<script type="text/babel" src="lib/ios-frame.jsx"></script>
+<script type="text/babel" src="lib/tweaks-panel.jsx"></script>
+
+<!-- app -->
+<script type="text/babel" src="src/icons.jsx"></script>
+<script type="text/babel" src="src/ui.jsx"></script>
+<script type="text/babel" src="src/scoring.jsx"></script>
+<script type="text/babel" src="src/bodymap.jsx"></script>
+<script type="text/babel" src="src/screens-intake.jsx"></script>
+<script type="text/babel" src="src/screens-data.jsx"></script>
+<script type="text/babel" src="src/screens-results.jsx"></script>
+<script type="text/babel" src="src/app.jsx"></script>
+</body>
+</html>
