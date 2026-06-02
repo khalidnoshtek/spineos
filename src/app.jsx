@@ -1,9 +1,9 @@
 // app.jsx — SpineOS state machine, routing, device scaling, tweaks
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
-  "accent": "#0A5C8E",
+  "accent": "#0E7C86",
   "onboarding": "Illustrated",
-  "dashboard": "Gauge",
+  "dashboard": "List",
   "bodyMap": "Silhouette",
   "report": "Detailed"
 }/*EDITMODE-END*/;
