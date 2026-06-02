@@ -14,6 +14,147 @@ const SUB_META = [
 ];
 const scoreColor = (v) => v >= 70 ? 'var(--green)' : v >= 50 ? 'var(--amber)' : 'var(--red)';
 
+// ── PDF report generation (jsPDF) ─────────────────────────────
+// Builds a real, downloadable A4 PDF from the assessment data.
+// Returns true on success; false if jsPDF is unavailable (caller falls back to print).
+const PDF_RISK = { low: [46, 125, 50], moderate: [224, 138, 0], high: [198, 40, 40] };
+function buildReportPDF({ d, s, lv, factors, recs, regions, detailed }) {
+  const jspdf = window.jspdf;
+  if (!jspdf || !jspdf.jsPDF) return false;
+
+  const doc = new jspdf.jsPDF({ unit: 'pt', format: 'a4' });
+  const PW = doc.internal.pageSize.getWidth();   // 595
+  const PH = doc.internal.pageSize.getHeight();  // 842
+  const M = 48, CW = PW - M * 2;
+  const INK = [17, 33, 46], INK2 = [73, 96, 115], INK3 = [128, 149, 164], LINE = [227, 235, 242];
+  const ACCENT = [14, 124, 134]; // teal
+  const risk = PDF_RISK[s.level] || INK;
+  let y = M;
+
+  const ensure = (need) => { if (y + need > PH - M) { doc.addPage(); y = M; } };
+  const setFont = (style = 'normal', size = 10, color = INK2) => {
+    doc.setFont('helvetica', style); doc.setFontSize(size); doc.setTextColor(...color);
+  };
+  const para = (text, { size = 10, color = INK2, style = 'normal', gap = 5, lead = 14 } = {}) => {
+    setFont(style, size, color);
+    const lines = doc.splitTextToSize(String(text), CW);
+    lines.forEach(ln => { ensure(lead); doc.text(ln, M, y); y += lead; });
+    y += gap;
+  };
+  const sectionTitle = (label) => {
+    ensure(34); y += 6;
+    setFont('bold', 12.5, INK); doc.text(label, M, y); y += 8;
+    doc.setDrawColor(...LINE); doc.setLineWidth(1); doc.line(M, y, M + CW, y); y += 16;
+  };
+  const stat = (label, value) => {
+    ensure(18); setFont('normal', 10, INK2); doc.text(label, M, y);
+    setFont('bold', 10, INK); doc.text(String(value), M + CW, y, { align: 'right' }); y += 18;
+  };
+
+  // ── header band ──
+  doc.setFillColor(...ACCENT); doc.rect(0, 0, PW, 96, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(255, 255, 255);
+  doc.text('SpineOS', M, 50);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(226, 240, 240);
+  doc.text('Phase 1 · Back Pain Risk Assessment', M, 70);
+  doc.setFontSize(9); doc.setTextColor(210, 232, 232);
+  doc.text('Generated ' + new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+    M + CW, 70, { align: 'right' });
+  y = 130;
+
+  // ── patient summary ──
+  setFont('bold', 16, INK); doc.text(d.name || 'Patient', M, y); y += 20;
+  const occ = d.occupation === 'office' ? 'Office worker' : (d.occupation || '').charAt(0).toUpperCase() + (d.occupation || '').slice(1);
+  para(`${d.age || '—'} yrs · ${d.gender === 'female' ? 'Female' : d.gender === 'male' ? 'Male' : '—'} · ${occ}`,
+    { size: 10.5, color: INK3, gap: 10 });
+
+  // risk index chip
+  ensure(46);
+  doc.setFillColor(risk[0], risk[1], risk[2]); doc.roundedRect(M, y, 150, 40, 8, 8, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(255, 255, 255);
+  doc.text(String(s.overall), M + 14, y + 27);
+  doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+  doc.text('RISK INDEX', M + 44, y + 16); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+  doc.text(lv.label + ' risk', M + 44, y + 30);
+  // bmi + pain chips
+  const chip = (x, big, small, color) => {
+    doc.setDrawColor(...LINE); doc.setLineWidth(1); doc.roundedRect(x, y, 120, 40, 8, 8, 'S');
+    setFont('bold', 16, color); doc.text(String(big), x + 14, y + 26);
+    setFont('normal', 8.5, INK3); doc.text(small, x + 14, y + 36);
+  };
+  chip(M + 162, s.bmi.toFixed(1), 'BMI · ' + s.bmiBand.label, INK);
+  chip(M + 294, `${d.painIntensity}/10`, 'PAIN INTENSITY', INK);
+  y += 58;
+
+  // ── scores ──
+  sectionTitle('Score breakdown  (0–100, higher is better)');
+  [['Lifestyle', s.lifestyle], ['Activity', s.activity], ['Sleep', s.sleep], ['Mobility', s.mobility], ['Body composition', s.obesity]]
+    .forEach(([l, v]) => {
+      ensure(24);
+      setFont('normal', 10, INK2); doc.text(l, M, y);
+      setFont('bold', 10, INK); doc.text(String(v), M + CW, y, { align: 'right' });
+      const bw = CW - 150, bx = M + 110;
+      doc.setFillColor(...LINE); doc.roundedRect(bx, y - 8, bw, 7, 3.5, 3.5, 'F');
+      const c = v >= 70 ? PDF_RISK.low : v >= 50 ? PDF_RISK.moderate : PDF_RISK.high;
+      doc.setFillColor(...c); doc.roundedRect(bx, y - 8, Math.max(6, bw * v / 100), 7, 3.5, 3.5, 'F');
+      y += 20;
+    });
+
+  // ── BMI analysis ──
+  sectionTitle('BMI analysis');
+  para(`Your BMI is ${s.bmi.toFixed(1)} (${s.bmiBand.label}). ` +
+    (s.bmi >= 25
+      ? 'Carrying extra weight increases compressive load on the lumbar discs, especially when seated.' +
+        (detailed ? ' Even a modest 5% reduction measurably lowers that load over time.' : '')
+      : 'This sits within a range that keeps spinal loading favourable.'));
+
+  // ── lifestyle & occupational ──
+  sectionTitle('Lifestyle & occupational risk');
+  stat('Daily sitting', `${d.sitHrs} h${d.sitHrs >= 8 ? '  (prolonged)' : ''}`);
+  stat('Driving', `${d.driveHrs} h`);
+  stat('Lifting load', (d.lifting || '').charAt(0).toUpperCase() + (d.lifting || '').slice(1));
+  if (detailed) { y += 4; para('Long static postures fatigue the deep stabilising muscles. Frequent micro-breaks are the single most effective desk-based countermeasure.', { size: 9.5, color: INK3 }); }
+
+  // ── pain pattern ──
+  sectionTitle('Pain pattern analysis');
+  para(`${regions.length ? regions.join(' & ') + ' pain' : 'No region selected'}, rated ${d.painIntensity}/10, ` +
+    `${d.painDuration === 'chronic' ? 'persisting beyond 12 weeks' : d.painDuration === 'sub' ? 'present 6–12 weeks' : 'recent onset'}.` +
+    (d.triggers && d.triggers.length ? ` Worsened by ${d.triggers.join(', ')}.` : '') +
+    (d.radiation ? ' Radiating symptoms noted — worth clinical review.' : ''));
+
+  // ── key risk factors ──
+  sectionTitle('Key risk factors');
+  if (factors.length) factors.forEach(f => {
+    ensure(16); setFont('normal', 10, INK);
+    doc.text('•  ' + f.label, M, y);
+    setFont('bold', 8.5, f.weight === 'high' ? PDF_RISK.high : PDF_RISK.moderate);
+    doc.text(f.weight.toUpperCase(), M + CW, y, { align: 'right' }); y += 16;
+  });
+  else para('No significant risk factors identified.', { color: INK3 });
+
+  // ── recommendations ──
+  sectionTitle('Recommended next steps');
+  recs.forEach((r, i) => {
+    ensure(30);
+    setFont('bold', 10.5, INK); doc.text(`${i + 1}. ${r.title}`, M, y); y += 14;
+    para(r.body, { size: 9.5, color: INK2, gap: 8, lead: 13 });
+  });
+
+  // ── disclaimer footer on every page ──
+  const pages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(...LINE); doc.setLineWidth(1); doc.line(M, PH - 40, M + CW, PH - 40);
+    setFont('normal', 7.5, INK3);
+    doc.text('SpineOS provides educational risk insights and is not a medical diagnosis. Consult a clinician for persistent or severe symptoms.', M, PH - 26);
+    doc.text(`Page ${p} of ${pages}`, M + CW, PH - 26, { align: 'right' });
+  }
+
+  const safe = (d.name || 'patient').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+  doc.save(`SpineOS-Report-${safe || 'patient'}.pdf`);
+  return true;
+}
+
 // ── bottom tab bar (results section) ──────────────────────────
 function BottomTabs({ active, go }) {
   const tabs = [
@@ -201,7 +342,12 @@ function Report({ d, s, go, t }) {
   const recs = recommendations(d, s);
   const [toast, setToast] = React.useState(false);
   const regions = (d.painRegions || []).map(id => (SPINE_REGIONS.find(r => r.id === id) || {}).label).filter(Boolean);
-  const download = () => { setToast(true); setTimeout(() => setToast(false), 2600); };
+
+  const download = () => {
+    const ok = buildReportPDF({ d, s, lv, factors, recs, regions, detailed });
+    if (ok) { setToast(true); setTimeout(() => setToast(false), 2600); }
+    else { window.print(); } // fallback: native print-to-PDF if jsPDF unavailable
+  };
 
   return (
     <>
@@ -304,7 +450,7 @@ function Report({ d, s, go, t }) {
       <BottomTabs active="report" go={go} />
       {toast && (
         <div style={{ position: 'absolute', left: 20, right: 20, bottom: 150, padding: '14px 18px', borderRadius: 14, background: 'var(--ink)', color: '#fff', display: 'flex', alignItems: 'center', gap: 10, boxShadow: 'var(--sh-3)', animation: 'spo-pop .3s both', zIndex: 80 }}>
-          <Icon name="checkCircle" size={20} /><span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>Report saved to your Files</span>
+          <Icon name="checkCircle" size={20} /><span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>Report PDF downloaded</span>
         </div>
       )}
     </>
